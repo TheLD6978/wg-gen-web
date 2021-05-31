@@ -4,12 +4,10 @@
 
 Simple Web based configuration generator for [WireGuard](https://wireguard.com).
 
-[![pipeline status](https://gitlab.127-0-0-1.fr/vx3r/wg-gen-web/badges/master/pipeline.svg)](https://gitlab.127-0-0-1.fr/vx3r/wg-gen-web/commits/master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/vx3r/wg-gen-web)](https://goreportcard.com/report/github.com/vx3r/wg-gen-web)
-![Gitlab pipeline status (self-hosted)](https://img.shields.io/gitlab/pipeline/vx3r/wg-gen-web?gitlab_url=https%3A%2F%2Fgitlab.127-0-0-1.fr%2F)
 [![License: WTFPL](https://img.shields.io/badge/License-WTFPL-brightgreen.svg)](http://www.wtfpl.net/about/)
 ![Discord](https://img.shields.io/discord/681699554189377567)
-![Build multi-arch Docker Images via buildx](https://github.com/vx3r/wg-gen-web/workflows/Build%20multi-arch%20Docker%20Images%20via%20buildx/badge.svg)
+![Build docker images via buildx](https://github.com/vx3r/wg-gen-web/actions/workflows/dockerimage.yml/badge.svg)
 ![GitHub last commit](https://img.shields.io/github/last-commit/vx3r/wg-gen-web)
 ![Docker Pulls](https://img.shields.io/docker/pulls/vx3r/wg-gen-web)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/vx3r/wg-gen-web)
@@ -46,7 +44,7 @@ The easiest way to run Wg Gen Web is using the container image
 ```
 docker run --rm -it -v /tmp/wireguard:/data -p 8080:8080 -e "WG_CONF_DIR=/data" vx3r/wg-gen-web:latest
 ```
-Docker compose snippet, used for demo server
+Docker compose snippet, used for demo server, wg-json-api service is optional
 ```
 version: '3.6'
 services:
@@ -71,17 +69,28 @@ services:
       - OAUTH2_REDIRECT_URL=https://wg-gen-web-demo.127-0-0-1.fr
     volumes:
       - /etc/wireguard:/data
+  wg-json-api:
+    image: james/wg-api:latest
+    container_name: wg-json-api
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    network_mode: "host"
+    command: wg-api --device wg0 --listen <API_LISTEN_IP>:8182
 ```
 Please note that mapping ```/etc/wireguard``` to ```/data``` inside the docker, will erase your host's current configuration.
 If needed, please make sure to backup your files from ```/etc/wireguard```.
 
 A workaround would be to change the ```WG_INTERFACE_NAME``` to something different, as it will create a new interface (```wg-auto.conf``` for example), note that if you do so, you will have to adapt your daemon accordingly.
 
+To get the value for **<API_LISTEN_IP>** take a look at the [WireGuard Status Display](#wireguard-status-display) section. If the status display should be disabled, remove the whole service from the docker-compose file or 
+use 127.0.0.1 as <API_LISTEN_IP>.
+
 ### Directly without docker
 
 Fill free to download latest artifacts from my GitLab server:
-* [Backend](https://gitlab.127-0-0-1.fr/vx3r/wg-gen-web/-/jobs/artifacts/master/download?job=build-back)
-* [Frontend](https://gitlab.127-0-0-1.fr/vx3r/wg-gen-web/-/jobs/artifacts/master/download?job=build-front)
+* [Backend](https://github.com/vx3r/wg-gen-web/-/jobs/artifacts/master/download?job=build-back)
+* [Frontend](https://github.com/vx3r/wg-gen-web/-/jobs/artifacts/master/download?job=build-front)
 
 Put everything in one directory, create `.env` file with all configurations and run the backend.
 
@@ -104,17 +113,17 @@ This `.path` will activate unit file with the same name
 ```
 # /etc/systemd/system/wg-gen-web.service
 [Unit]
-Description=Restart WireGuard
+Description=Reload WireGuard
 After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemctl restart wg-quick@wg0.service
+ExecStart=/usr/bin/systemctl reload wg-quick@wg0.service
 
 [Install]
 WantedBy=multi-user.target
 ```
-Which will restart WireGuard service 
+Which will reload WireGuard service 
 
 ### Using ```inotifywait```
 For any other init system, create a daemon running this script
@@ -178,8 +187,28 @@ OAUTH2_CLIENT_SECRET=********************
 OAUTH2_REDIRECT_URL=https://wg-gen-web-demo.127-0-0-1.fr
 ```
 
-Please fell free to test and report any bugs.
 Wg Gen Web will only access your profile to get email address and your name, no other unnecessary scopes will be requested.
+
+## WireGuard Status Display
+Wg Gen Web integrates a [WireGuard API implementation](https://github.com/jamescun/wg-api) to display client stats.
+In order to enable the Status API integration, the following settings need to be configured:
+```
+# https://github.com/jamescun/wg-api integration, user and password (basic auth) are optional
+WG_STATS_API=http://<API_LISTEN_IP>:8182
+WG_STATS_API_USER=
+WG_STATS_API_PASS=
+```
+
+To setup the WireGuard API take a look at [https://github.com/jamescun/wg-api/blob/master/README.md](https://github.com/jamescun/wg-api/blob/master/README.md), or simply use the provided docker-compose file from above.
+
+### API_LISTEN_IP
+Due to the fact that the wg-api container operates on the host network, the wg-gen-web container cannot directly talk to the API. Thus the docker-host gateway IP of the wg-gen-web container has to be used. If the default bridge network (docker0) is used, this IP should be `172.17.0.1`. If a custom network is used, you can find the gateway IP by inspecting the output of:
+```
+docker network inspect <network name>
+```
+Use the IP address found for **Gateway** as the **API_LISTEN_IP**.
+
+Please feel free to test and report any bugs.
 
 ## Need Help
 

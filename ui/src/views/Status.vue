@@ -1,16 +1,16 @@
 <template>
   <v-main>
-    <Clients/>
+    <Status/>
   </v-main>
 </template>
 
 <script>
-  import Clients from '../components/Clients'
+  import Status from '../components/Status'
 
   export default {
-    name: 'clients',
+    name: 'status',
     components: {
-      Clients
+      Status
     }
   }
 </script>
